@@ -127,5 +127,69 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
             cls.send_streaming = real
 
 
+class ProxyIntegrationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_real_core_builder_both_requests_and_handlers_without_network(self):
+        from unittest.mock import patch
+        import httpx
+        from telegram.ext import ApplicationBuilder
+        from telegram.request import HTTPXRequest
+        from astrbot.core.platform.sources.telegram import tg_adapter
+        from astrbot_plugin_telegram_stream_segments.telegram_proxy import TelegramProxyHook
+        created = []
+        class RecordingRequest(HTTPXRequest):
+            def __init__(self, **kwargs):
+                super().__init__(**kwargs)
+                self.options = kwargs
+                created.append(self)
+        adapter = object.__new__(tg_adapter.TelegramPlatformAdapter)
+        adapter.config = {'telegram_token': '123456:TEST_TOKEN_FOR_OFFLINE_TEST_ONLY'}
+        adapter.base_url = 'https://api.example.invalid/bot'
+        adapter.file_base_url = 'https://api.example.invalid/file/bot'
+        original = tg_adapter.ApplicationBuilder
+        hook = TelegramProxyHook(tg_adapter, {
+            'telegram_proxy_enable': True, 'telegram_proxy_url': 'http://127.0.0.1:7897'
+        }, RecordingRequest)
+        try:
+            hook.install()
+            # Even an unusable global proxy must not affect these requests.
+            with patch.dict(os.environ, {'HTTP_PROXY': 'broken://global', 'HTTPS_PROXY': 'broken://global'}), \
+                    patch.object(httpx.AsyncClient, 'send', side_effect=AssertionError('network forbidden')):
+                adapter._build_application()
+            self.assertIs(adapter.client, adapter.application.bot)
+            self.assertTrue(adapter.client.base_url.startswith(adapter.base_url))
+            self.assertTrue(adapter.client.base_file_url.startswith(adapter.file_base_url))
+            self.assertEqual(len(adapter.application.handlers[0]), 1)
+            self.assertEqual(adapter.application.handlers[0][0].callback, adapter.message_handler)
+            self.assertIs(adapter.client.request, created[0])
+            self.assertIs(adapter.client._request[0], created[1])
+            self.assertEqual([r.options['connection_pool_size'] for r in created], [256, 1])
+            self.assertTrue(all(r.options['httpx_kwargs'] == {'trust_env': False} for r in created))
+            self.assertFalse(created[0]._client._trust_env)
+            self.assertFalse(created[1]._client._trust_env)
+            self.assertIs(__import__('telegram.ext', fromlist=['ApplicationBuilder']).ApplicationBuilder, ApplicationBuilder)
+            hook.uninstall()
+            self.assertIs(tg_adapter.ApplicationBuilder, original)
+            self.assertIs(adapter.client.request, created[0])  # Existing client unchanged.
+        finally:
+            hook.uninstall()
+            for request in created:
+                await request.shutdown()
+
+    async def test_plugin_proxy_lifecycle_with_segmentation_disabled(self):
+        from astrbot.core.platform.sources.telegram import tg_adapter
+        original = tg_adapter.ApplicationBuilder
+        plugin = module.TelegramStreamSegments(SimpleNamespace(), {
+            'enable': False, 'telegram_proxy_enable': True, 'telegram_proxy_url': ''
+        })
+        try:
+            await plugin.initialize()
+            self.assertIsNot(tg_adapter.ApplicationBuilder, original)
+            with self.assertRaises(ValueError):
+                tg_adapter.ApplicationBuilder()
+        finally:
+            await plugin.terminate()
+        self.assertIs(tg_adapter.ApplicationBuilder, original)
+
+
 if __name__ == '__main__':
     unittest.main()

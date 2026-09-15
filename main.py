@@ -11,6 +11,7 @@ from astrbot.core.platform.sources.telegram.tg_event import TelegramPlatformEven
 from .splitter import ParagraphSplitter
 from .separators import separator_rules
 from .rate_limit import ChatPacer, ClientCooldown, PacedClient, pacing_options
+from .telegram_proxy import TelegramProxyHook
 
 _PATCH_MARKER = "_astrbot_telegram_stream_segments_patch"
 
@@ -51,7 +52,7 @@ async def segment_stream(generator, rules=None):
         yield MessageChain(chain=[], type="break") if text is None else last_chain.derive([Plain(text)])
 
 
-@register("astrbot_plugin_telegram_stream_segments", "Local", "Telegram 群聊流式空行分段", "1.1.0")
+@register("astrbot_plugin_telegram_stream_segments", "Local", "Telegram 群聊流式空行分段", "1.2.0")
 class TelegramStreamSegments(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -61,6 +62,7 @@ class TelegramStreamSegments(Star):
         self._active = False
         self._pacers = {}
         self._client_states = {}
+        self._proxy_hook = None
 
     async def initialize(self):
         current = TelegramPlatformEvent.send_streaming
@@ -72,6 +74,11 @@ class TelegramStreamSegments(Star):
             return
         self._previous = current
         self._active = True
+        from astrbot.core.platform.sources.telegram import tg_adapter
+        self._proxy_hook = TelegramProxyHook(tg_adapter, self.config)
+        self._proxy_hook.install()
+        if self.config.get("telegram_proxy_enable", False):
+            logger.info("[TelegramStreamSegments] Independent Telegram proxy enabled for NEW clients; restart AstrBot to apply to existing connections.")
         owner = self
 
         @wraps(current)
@@ -104,6 +111,8 @@ class TelegramStreamSegments(Star):
 
     async def terminate(self):
         self._active = False
+        if self._proxy_hook is not None:
+            self._proxy_hook.uninstall()
         if self._wrapper is not None and TelegramPlatformEvent.send_streaming is self._wrapper:
             TelegramPlatformEvent.send_streaming = self._previous
         self._wrapper = None

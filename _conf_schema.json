@@ -1,4 +1,16 @@
 {
+  "telegram_proxy_enable": {
+    "description": "启用 Telegram 独立代理",
+    "type": "bool",
+    "default": false,
+    "hint": "仅影响新建的全部 Telegram 连接（含私聊和长轮询），独立于分段开关。保存后重启 AstrBot；不会自动断开当前连接。"
+  },
+  "telegram_proxy_url": {
+    "description": "Telegram 代理地址",
+    "type": "string",
+    "default": "",
+    "hint": "例如 http://127.0.0.1:7897，仅支持 HTTP/HTTPS 代理，不支持 SOCKS。启用后不继承全局环境代理；空值或非法地址会阻止新客户端创建，不会静默直连。修改或关闭后重启 AstrBot。"
+  },
   "enable": {
     "description": "启用 Telegram 群聊流式空行分段",
     "type": "bool",
