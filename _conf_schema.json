@@ -22,5 +22,29 @@
     "type": "float",
     "default": 0.1,
     "hint": "在 Telegram 指定等待时间上额外增加的秒数，有效范围 0–10；非法值回退 0.1。设为 0 仍会完整等待服务器要求的时间。保存后重载插件生效。"
+  },
+  "split_on_blank_lines": {
+    "description": "按空行分段",
+    "type": "bool",
+    "default": true,
+    "hint": "默认开启，无需填写正则；关闭后仍可使用自定义分隔符。空行本身不保留。"
+  },
+  "custom_separators": {
+    "description": "自定义分隔符列表",
+    "type": "list",
+    "default": [],
+    "hint": "每项填写实际字符，插件自动转义为正则匹配。可填写 \\n 表示单换行、\\r\\n 表示 Windows 换行、\\t 表示制表符、\\\\ 表示反斜杠。最多 32 项，每项解码后 1–64 字符；重叠时优先最长项。"
+  },
+  "keep_custom_separators": {
+    "description": "保留自定义分隔符",
+    "type": "bool",
+    "default": true,
+    "hint": "命中字面分隔符或高级正则后，将匹配文字保留在上一段末尾；关闭则移除。不会发送纯空白消息。"
+  },
+  "advanced_separator_regex": {
+    "description": "高级分隔正则（可选）",
+    "type": "string",
+    "default": "",
+    "hint": "可填 [。！？]{1,3} 或 ---|===。只支持非空、有限最大宽度不超过 64 的简单正则；不支持 *、+ 等无界量词、锚点、前后断言、反向引用、嵌套重复。复杂或无效项会记录日志并忽略。最多缓存 63 字符以判断跨块边界；保存后重载插件。"
   }
 }

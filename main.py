@@ -9,13 +9,14 @@ from astrbot.core.platform.astr_message_event import MessageType
 from astrbot.core.platform.sources.telegram.tg_event import TelegramPlatformEvent
 
 from .splitter import ParagraphSplitter
+from .separators import separator_rules
 from .rate_limit import ChatPacer, ClientCooldown, PacedClient, pacing_options
 
 _PATCH_MARKER = "_astrbot_telegram_stream_segments_patch"
 
 
-async def segment_stream(generator):
-    splitter = ParagraphSplitter()
+async def segment_stream(generator, rules=None):
+    splitter = ParagraphSplitter(rules)
     last_chain = MessageChain()
     async for chain in generator:
         if not isinstance(chain, MessageChain):
@@ -23,9 +24,9 @@ async def segment_stream(generator):
             continue
         if chain.type is not None:
             for text in splitter.flush():
-                yield last_chain.derive([Plain(text)])
+                yield MessageChain(chain=[], type="break") if text is None else last_chain.derive([Plain(text)])
             yield chain
-            splitter = ParagraphSplitter()
+            splitter = ParagraphSplitter(rules)
             continue
         if any(not isinstance(c, Plain) for c in chain.chain):
             # Keep original mixed chains together: the Telegram adapter cannot
@@ -33,14 +34,9 @@ async def segment_stream(generator):
             components = list(chain.chain)
             first_plain = next((i for i, c in enumerate(components) if isinstance(c, Plain)), None)
             if first_plain is not None:
-                prefix = splitter.pending
-                splitter.pending = ""
+                prefix = splitter.passthrough(''.join(c.text for c in chain.chain if isinstance(c, Plain)))
                 if prefix:
                     components[first_plain] = Plain(prefix + components[first_plain].text)
-                for component in chain.chain:
-                    if isinstance(component, Plain):
-                        splitter.feed(component.text)  # Track fences without splitting this chain.
-                splitter.pending = ""  # This chain delivers its own trailing whitespace.
             yield chain.derive(components)
             last_chain = chain
             continue
@@ -52,10 +48,10 @@ async def segment_stream(generator):
                 else:
                     yield chain.derive([Plain(text)])
     for text in splitter.flush():
-        yield last_chain.derive([Plain(text)])
+        yield MessageChain(chain=[], type="break") if text is None else last_chain.derive([Plain(text)])
 
 
-@register("astrbot_plugin_telegram_stream_segments", "Local", "Telegram 群聊流式空行分段", "1.0.2")
+@register("astrbot_plugin_telegram_stream_segments", "Local", "Telegram 群聊流式空行分段", "1.1.0")
 class TelegramStreamSegments(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -90,11 +86,12 @@ class TelegramStreamSegments(Star):
                 pacer = owner._pacers.setdefault(key, ChatPacer(cooldown=cooldown))
                 async with pacer.stream_lock:
                     pacer.configure(**pacing_options(owner.config))
+                    rules = separator_rules(owner.config, lambda message: logger.warning(f"[TelegramStreamSegments] {message}"))
                     previous_client = event.client
                     proxy = PacedClient(client, pacer, chat_id)
                     event.client = proxy
                     try:
-                        return await current(event, segment_stream(generator), *args, **kwargs)
+                        return await current(event, segment_stream(generator, rules), *args, **kwargs)
                     finally:
                         if event.client is proxy:
                             event.client = previous_client
