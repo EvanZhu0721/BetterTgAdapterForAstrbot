@@ -1,0 +1,26 @@
+{
+  "enable": {
+    "description": "启用 Telegram 群聊流式空行分段",
+    "type": "bool",
+    "default": true,
+    "hint": "保持 AstrBot 的流式输出开启。空行开始新消息，代码围栏内的空行不分段。"
+  },
+  "message_interval_seconds": {
+    "description": "新消息最小间隔（秒）",
+    "type": "float",
+    "default": 3.2,
+    "hint": "同一机器人、同一群的新消息间隔。有效范围 0.1–60 秒；越界或非法值回退 3.2。调小可能更频繁触发 Telegram 限流。保存后重载插件生效，每条流读取一次。"
+  },
+  "request_interval_seconds": {
+    "description": "发送与编辑共享最小间隔（秒）",
+    "type": "float",
+    "default": 1.1,
+    "hint": "同群 send_message 和 edit_message_text 共同遵守此间隔。有效范围 0.1–60 秒；非法值回退 1.1。调小可能更频繁限流，调大降低文字更新速度。保存后重载插件生效。"
+  },
+  "retry_after_margin_seconds": {
+    "description": "服务器限流等待额外余量（秒）",
+    "type": "float",
+    "default": 0.1,
+    "hint": "在 Telegram 指定等待时间上额外增加的秒数，有效范围 0–10；非法值回退 0.1。设为 0 仍会完整等待服务器要求的时间。保存后重载插件生效。"
+  }
+}

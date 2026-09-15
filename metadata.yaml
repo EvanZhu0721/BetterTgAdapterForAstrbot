@@ -1,0 +1,6 @@
+name: astrbot_plugin_telegram_stream_segments
+display_name: Telegram 流式空行分段
+desc: Telegram 群聊按空行分成多条消息，每段保留流式更新。
+version: v1.0.2
+author: Local
+repo: https://github.com/EvanZhu0721/astrbot_plugin_telegram_stream_segments
