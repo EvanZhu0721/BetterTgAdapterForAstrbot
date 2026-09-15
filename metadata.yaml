@@ -1,5 +1,5 @@
 name: astrbot_plugin_telegram_stream_segments
-display_name: Telegram 流式空行分段
+display_name: BetterTgAdapterForAstrbot
 desc: Telegram 群聊按空行分成多条消息，每段保留流式更新。
 version: v1.2.0
 author: Local
